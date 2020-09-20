@@ -46,7 +46,7 @@ unsigned long tiempoActual = 0;
 // Utilizado para la interrupción por softawre de genera_evento
 unsigned long lastTimeOut = 0;
 // Registra el tiempo en que se detecto movimiento
-unsigned long tiempoDeteccion = 0; 
+unsigned long tiempoParpadeo = 0; 
 // Registra el tiempo en el que se comenzó la búsqueda
 unsigned long comienzoBusqueda = 0; 
 
@@ -68,7 +68,7 @@ void setup()
   servo.attach(SERVO_PIN);     
 
   // Seteamos el estado inicial  
-  current_state = DAYTIME_STATE;
+  current_state = DAY_TIME_STATE;
   Serial.print("La torreta no se activará hasta que sea de noche.");
 }
 
@@ -94,7 +94,7 @@ void state_machine()
 
   switch (current_state)
   {
-    case DAYTIME_STATE:
+    case DAY_TIME_STATE:
     {      
       switch (event)
       {
@@ -112,11 +112,7 @@ void state_machine()
         }
           break; 
         
-        default:
-        {
-          printStateMsg("DAYTIME STATE", "UNKOWN EVENT");
-          // evento no reconocido
-        }
+        default:                
           break;
       }
     }
@@ -147,13 +143,21 @@ void state_machine()
         case MOVEMENT_DETECTED_EVENT: 
         {
           printStateMsg("SLEEPING STATE", "MOTION DETECTED EVENT");
+          // Encendemos los LED
+          digitalWrite(LED_PIN , HIGH);
+          // Guardamos el tiempo en que se detectó movimiento          
+          tiempoParpadeo = tiempoActual;    
+          // Tomamos el tiempo actual para saber cuándo empezó la búsqueda del objetivo
+          comienzoBusqueda = tiempoActual;
+          // Cambiamos de estado al estado de búsqueda
+          current_state = SEARCHING_STATE;
+        }
+          break;
 
-            // Encendemos los LED
-            digitalWrite(LED_PIN , HIGH);
-            // Guardamos el tiempo en que se detectó movimiento
-            tiempoDeteccion = millis();    
-            // Cambiamos de estado al estado de búsqueda
-            current_state = SEARCHING_STATE;
+        case DAY_TIME_EVENT: 
+        {
+          printStateMsg("SLEEPING STATE", "DAY_TIME EVENT");
+          current_state = DAY_TIME_STATE;
         }
           break;
 
@@ -176,15 +180,22 @@ void state_machine()
 
         case TARGET_IN_RANGE_EVENT:
         {
-            printStateMsg("SEARCHING STATE", "TARGET IN RANGE");
+            printStateMsg("SEARCHING STATE", "TARGET IN RANGE EVENT");
             current_state = FIRING_STATE;
         }
           break;
 
         case TARGET_OUT_OF_RANGE_EVENT: 
         {
-            printStateMsg("SEARCHING STATE", "TARGET OUT OF RANGE");
+            printStateMsg("SEARCHING STATE", "TARGET OUT OF RANGE EVENT");
             buscarObjetivo(); 
+        }
+          break;
+        
+        case SEARCH_TIMEOUT_EVENT: 
+        {
+            printStateMsg("SEARCHING STATE", "SERACH TIME OUT EVENT");
+            current_state = SLEEP_MODE_ACTIVATED_STATE;
         }
           break;
 
@@ -215,7 +226,7 @@ void state_machine()
 
         case TARGET_OUT_OF_RANGE_EVENT: 
         {
-          printStateMsg("FIRING_STATE", "TARGET OUT OF RANGE");
+          printStateMsg("FIRING_STATE", "TARGET OUT OF RANGE EVENT");
           current_state = SEARCHING_STATE;
         }
           break;    
@@ -286,8 +297,14 @@ void genera_evento()
       case READ_DISTANCE_SENSOR: 
       {
         readDistanceSensor();
+        sensor_state = CHECK_SEARCH_TIMEOUT;
+      }
+      case CHECK_SEARCH_TIMEOUT: 
+      {
+        checkSearchTimeout();
         sensor_state = READ_LIGHT_SENSOR;
       }
+        break;
 
       default: 
         sensor_state = READ_LIGHT_SENSOR;
@@ -341,6 +358,19 @@ void readDistanceSensor()
   }
 }
 
+void checkSearchTimeout()
+{   
+  // Si no hay movimiento y el tiempoActual supera el tiempo de busqueda
+  if (!movimientoDetectado && tiempoActual > comienzoBusqueda + TIMEOUT_BUSQUEDA)
+  {
+    printState("SEARCHING_STATE - Cambiando a sleep mode");
+    // Reseteamos porque cambiamos de estado
+    comienzoBusqueda = 0;  
+    // Disparamos el evento de search time out
+    event = SEARCH_TIMEOUT_EVENT;
+  } 
+}
+
 //---------------------------------------------------------------------
 
 //---------------------------------------------------------------------
@@ -348,42 +378,21 @@ void readDistanceSensor()
 
 void buscarObjetivo() 
 {
-  // Tomamos el tiempo actual para saber cuándo empezó la búsqueda del objetivo
-  if (comienzoBusqueda == 0)
-    comienzoBusqueda = millis();    
-
   // Si el objetivo no está en rango, seguimos moviendo la torreta un rato para buscar
   printState("SEARCHING_STATE - Buscando");
-
   // Movemos la torreta
-  moverTorreta();
-  
-  if (tiempoActual > tiempoDeteccion + DELAY_PARPADEO)
+  moverTorreta();  
+  if (tiempoActual > tiempoParpadeo + DELAY_PARPADEO)
   {
-    // Si no hay movimiento y el tiempoActual supera el tiempo de busqueda
-    if (!movimientoDetectado && tiempoActual > comienzoBusqueda + TIMEOUT_BUSQUEDA)
-    {
-      //printStateMsg("SEARCHING STATE", "SEARCH TIME OUT EVENT");
-      printState("SEARCHING_STATE - Cambiando a sleep mode");
-      // Reseteamos porque cambiamos de estado
-      comienzoBusqueda = 0;  
-      // Seteamos el estado a SLEEP_MODE, porque se agotó el tiempo de búsqueda
-      // En realidad podríamos disparar un evento, sería mejor!
-      current_state = SLEEP_MODE_ACTIVATED_STATE;
-    } 
-    // Si todavia hay movimiento o no se supero el tiempo de busqueda, parpadeamos los LEDS
-    else
-    {
-      printState("SEARCHING_STATE - Parpadeando LEDs");
+    printState("SEARCHING_STATE - Parpadeando LEDs");
 
-      estadoLED = !estadoLED;
-      digitalWrite(LED_PIN, estadoLED);
+    estadoLED = !estadoLED;
+    digitalWrite(LED_PIN, estadoLED);
 
-      tiempoDeteccion = millis();  
-    }
+    // Volvemos a setear el tiempo de parpadeo
+    tiempoParpadeo = tiempoActual; 
+  
   } 
-
-  //current_state = SEARCHING_STATE;
 }
 
 //---------------------------------------------------------------------

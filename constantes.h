@@ -1,5 +1,5 @@
 // ESTADOS
-#define DAYTIME_STATE                100
+#define DAY_TIME_STATE               100
 #define BOOTING_UP_STATE             150
 #define SLEEPING_STATE               200
 #define SEARCHING_STATE              300
@@ -23,6 +23,7 @@
 #define READ_LIGHT_SENSOR    100
 #define READ_PIR_SENSOR      200
 #define READ_DISTANCE_SENSOR 300
+#define CHECK_SEARCH_TIMEOUT 400
 
 // ULTRASONIDO
 
