@@ -1,20 +1,28 @@
 // ESTADOS
-// #define SLEEPING_STATE               1
-// #define SEARCHING_STATE              2
-// #define TARGET_AQUIRED_STATE         3
-// #define FIRING_STATE                 4
-// #define TARGET_LOST_STATE            5
-// #define SLEEP_MODE_ACTIVATED         6
+#define DAYTIME_STATE                100
+#define BOOTING_UP_STATE             150
+#define SLEEPING_STATE               200
+#define SEARCHING_STATE              300
+#define TARGET_AQUIRED_STATE         400
+#define FIRING_STATE                 500
+#define TARGET_LOST_STATE            600
+#define SLEEP_MODE_ACTIVATED_STATE   700
 
-enum states {
- SLEEPING_STATE,
- SEARCHING_STATE,
- TARGET_AQUIRED_STATE,
- FIRING_STATE, 
- TARGET_LOST_STATE,
- SLEEP_MODE_ACTIVATED
+// EVENTOS
+#define CONTINUE_EVENT            100
+#define NIGHT_TIME_EVENT          200
+#define DAY_TIME_EVENT            250
+#define MOVEMENT_DETECTED_EVENT   300
+#define NO_MOVEMENT_EVENT         350
+#define TARGET_IN_RANGE_EVENT     400
+#define TARGET_OUT_OF_RANGE_EVENT 500
+#define SEARCH_TIMEOUT_EVENT      600
+#define READ_SENSORS_EVENT        700
 
-} current_state;
+// "ESTADOS" DE LOS SENSORES
+#define READ_LIGHT_SENSOR    100
+#define READ_PIR_SENSOR      200
+#define READ_DISTANCE_SENSOR 300
 
 // ULTRASONIDO
 
@@ -39,10 +47,11 @@ enum states {
 
 // TIEMPO / PAUSAS / DELAY
 #define DELAY_PARPADEO     25   // Delay (en ms) del parpadeo de los LEDs después de detectar movimiento / fase de búsqueda
-#define TIEMPO_DE_BUSQUEDA 2500 // Duración de la búsqueda
+#define TIMEOUT_BUSQUEDA   2500 // Duración de la búsqueda
+#define NEXT_EVENT_TIMEOUT 25
 
 // LED
-#define LED_PIN         12
+#define LED_PIN 12
 
 // FOTORESISTOR
 #define SENSOR_LUZ_PIN  14

@@ -1,11 +1,16 @@
 #include <Servo.h>
 #include "constantes.h"
 
-/** IMPLEMENTAR MAQUINA DE ESTADOS CON EVENTOS */
-
 // VARIABLES GLOBALES
 
-/* SERVO */
+//---------------------------------------------------------------------
+// ESTADOS Y EVENTOS
+int current_state = 0;
+int event = 0;
+int sensor_state;
+
+//---------------------------------------------------------------------
+// SERVO 
 
 // Objeto del servo (perteneciente a la biblioteca servo.h)
 Servo servo; 
@@ -13,8 +18,9 @@ Servo servo;
 int servoPosition = SERVO_MIDDLE_POSITION;
 // Indica si el servo se mueve de izquierda a derecha, o derecha a izquierda
 boolean leftToRight = true; 
- 
-/* VARIABLES RELACIONADAS AL PIR */
+
+//---------------------------------------------------------------------
+// VARIABLES RELACIONADAS AL PIR 
 
 // Tiempo en el que ocurre una transicion de HIGH a LOW
 unsigned long tiempoTransicionLow;         
@@ -23,30 +29,31 @@ boolean bloquearLow = true;
 // Booleana para medir el tiempo de transicion a LOW solo cuando ocurra la transición
 boolean medirTiempoLow;
 
-/* FLAGS */
+//---------------------------------------------------------------------
+// FLAGS
 
 // Almacena el valor arrojado por el PIR (true = movimiento detectado, false = no hay movimiento)
 int movimientoDetectado = 0; 
-// Almacena el valor arrojado por el sensor de ultrasonido, indica si el objetivo está dentro del rango de detección
-boolean objetivoEnRango = false; 
 
-/* OTRAS VARIABLES */
-
-// Almacena el estado actual
-int estadoActual = SLEEPING_STATE; 
 // Para el parpadeo del LED
 int estadoLED = 0;
-// Variable que almacena el string del estado actual para ser mostrado por serial
-String strState;
 
-/* VARIABLES RELACIONADAS AL TIEMPO */
+//---------------------------------------------------------------------
+// VARIABLES RELACIONADAS AL TIEMPO 
 
 // Mide el tiempo actual
 unsigned long tiempoActual = 0;
+// Utilizado para la interrupción por softawre de genera_evento
+unsigned long lastTimeOut = 0;
 // Registra el tiempo en que se detecto movimiento
 unsigned long tiempoDeteccion = 0; 
 // Registra el tiempo en el que se comenzó la búsqueda
 unsigned long comienzoBusqueda = 0; 
+
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// SETUP
 
 void setup()
 {
@@ -60,31 +67,327 @@ void setup()
   pinMode(SENSOR_LUZ_PIN, INPUT);
   servo.attach(SERVO_PIN);     
 
-  // Movemos la torreta a la posición inicial
-  moverTorretaHome();    
   // Seteamos el estado inicial  
-  current_state = SLEEPING_STATE;
+  current_state = DAYTIME_STATE;
   Serial.print("La torreta no se activará hasta que sea de noche.");
 }
+
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// LOOP
 
 void loop()
 {     
   tiempoActual = millis();
+  state_machine();
+}
 
-  if (esDeNoche()) 
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// STATE MACHINE
+
+void state_machine() 
+{
+  genera_evento();
+
+  switch (current_state)
   {
-    // Le damos un tiempo al sensor PIR para que se calibre 
-    if ((tiempoActual/1000) > TIEMPO_CALIBRACION) 
-    {
-      detectarMovimiento();
-      checkStates();    
-    } 
-    else 
-    {
-      Serial.println('.');
+    case DAYTIME_STATE:
+    {      
+      switch (event)
+      {
+
+        case NIGHT_TIME_EVENT:
+        {
+          printStateMsg("DAYTIME STATE", "NIGHT_TIME EVENT");
+          current_state = BOOTING_UP_STATE;
+        }
+          break;
+
+        case CONTINUE_EVENT: 
+        {
+          // printStateMsg("DAYTIME STATE", "CONTINUE EVENT");
+        }
+          break; 
+        
+        default:
+        {
+          printStateMsg("DAYTIME STATE", "UNKOWN EVENT");
+          // evento no reconocido
+        }
+          break;
+      }
     }
+      break;
+
+    case BOOTING_UP_STATE: 
+    {
+      switch (event)
+      {
+        case CONTINUE_EVENT:
+        {
+          // printStateMsg("BOOTING_UP STATE", "CONTINUE EVENT");
+          moverTorretaHome();
+          current_state = SLEEPING_STATE;
+        }
+          break;
+        
+        default:
+          break;
+        }    
+    }
+      break;
+
+    case SLEEPING_STATE: 
+    {
+      switch (event)
+      {
+        case MOVEMENT_DETECTED_EVENT: 
+        {
+          printStateMsg("SLEEPING STATE", "MOTION DETECTED EVENT");
+
+            // Encendemos los LED
+            digitalWrite(LED_PIN , HIGH);
+            // Guardamos el tiempo en que se detectó movimiento
+            tiempoDeteccion = millis();    
+            // Cambiamos de estado al estado de búsqueda
+            current_state = SEARCHING_STATE;
+        }
+          break;
+
+        case CONTINUE_EVENT:
+        {
+          // printStateMsg("SLEEPING STATE", "CONTINUE EVENT");        
+        }          
+          break;
+        
+        default:
+          break;
+      }
+    }
+      break;
+
+    case SEARCHING_STATE: 
+    {
+      switch (event)
+      {
+
+        case TARGET_IN_RANGE_EVENT:
+        {
+            printStateMsg("SEARCHING STATE", "TARGET IN RANGE");
+            current_state = FIRING_STATE;
+        }
+          break;
+
+        case TARGET_OUT_OF_RANGE_EVENT: 
+        {
+            printStateMsg("SEARCHING STATE", "TARGET OUT OF RANGE");
+            buscarObjetivo(); 
+        }
+          break;
+
+        case CONTINUE_EVENT: 
+        {
+          // printStateMsg("SEARCHING STATE", "CONTINUE EVENT");
+          current_state = SEARCHING_STATE;
+        }
+          break;
+        
+        default:
+          break;
+      }
+    }
+      break;
+
+    case FIRING_STATE: 
+    {
+      switch (event)
+      {
+
+        case TARGET_IN_RANGE_EVENT: 
+        {
+          printStateMsg("FIRING_STATE", "TARGET IN RANGE EVENT");
+          current_state = FIRING_STATE;
+        }
+          break;
+
+        case TARGET_OUT_OF_RANGE_EVENT: 
+        {
+          printStateMsg("FIRING_STATE", "TARGET OUT OF RANGE");
+          current_state = SEARCHING_STATE;
+        }
+          break;    
+      
+        default:
+          break;
+      }
+    }
+      break;
+    
+    case SLEEP_MODE_ACTIVATED_STATE: 
+    {
+      switch (event)
+      {
+        case CONTINUE_EVENT:
+        {
+          // printStateMsg("SLEEP_MODE_ACTIVATED STATE", "CONTINUE EVENT");
+          moverTorretaHome();  
+          // Apagamos el LED porque la torreta se va a dormir
+          digitalWrite(LED_PIN, LOW);  
+          current_state = SLEEPING_STATE;
+        }
+          break;
+        
+        default:
+          break;
+      }
+    }
+      break;
+    
+    default:
+    {
+      printStateMsg("UKNOWN STATE", "UNKNOWN EVENT");
+    }
+      break;
+  }
+
+  // Consumimos el evento
+  event = CONTINUE_EVENT;
+}
+
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// GENERA_EVENTO
+
+void genera_evento() 
+{
+  if (tiempoActual > lastTimeOut + NEXT_EVENT_TIMEOUT) 
+  {
+    lastTimeOut = tiempoActual; 
+    // Implementar lógica para que se lea un sensor diferente en cada ciclo. De esta forma podemos disparar los eventos adecuados.
+
+    switch (sensor_state)
+    {
+      case READ_LIGHT_SENSOR: 
+      {
+        readLightSensor();
+        sensor_state = READ_PIR_SENSOR;
+      }
+        break;
+      case READ_PIR_SENSOR: 
+      {
+        readPIRSensor();
+        sensor_state = READ_DISTANCE_SENSOR;
+      }
+        break;
+      case READ_DISTANCE_SENSOR: 
+      {
+        readDistanceSensor();
+        sensor_state = READ_LIGHT_SENSOR;
+      }
+
+      default: 
+        sensor_state = READ_LIGHT_SENSOR;
+        break;
+    }
+  } 
+  else 
+  {
+    event = CONTINUE_EVENT;
   }
 }
+
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// SENSOR READING FUNCTIONS
+
+void readLightSensor()
+{
+  if (esDeNoche())
+  {
+    event = NIGHT_TIME_EVENT;
+  } 
+  else 
+  {
+    event = DAY_TIME_EVENT;
+  }
+}
+
+void readPIRSensor()
+{
+  if (detectarMovimiento())
+  {
+    event = MOVEMENT_DETECTED_EVENT;
+  }
+  else 
+  {
+    event = NO_MOVEMENT_EVENT;
+  }
+}
+
+void readDistanceSensor()
+{
+  if (estaEnRango())
+  {
+    event = TARGET_IN_RANGE_EVENT;
+  }
+  else 
+  {
+    event = TARGET_OUT_OF_RANGE_EVENT;
+  }
+}
+
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// BUSCAR OBJETIVO
+
+void buscarObjetivo() 
+{
+  // Tomamos el tiempo actual para saber cuándo empezó la búsqueda del objetivo
+  if (comienzoBusqueda == 0)
+    comienzoBusqueda = millis();    
+
+  // Si el objetivo no está en rango, seguimos moviendo la torreta un rato para buscar
+  printState("SEARCHING_STATE - Buscando");
+
+  // Movemos la torreta
+  moverTorreta();
+  
+  if (tiempoActual > tiempoDeteccion + DELAY_PARPADEO)
+  {
+    // Si no hay movimiento y el tiempoActual supera el tiempo de busqueda
+    if (!movimientoDetectado && tiempoActual > comienzoBusqueda + TIMEOUT_BUSQUEDA)
+    {
+      //printStateMsg("SEARCHING STATE", "SEARCH TIME OUT EVENT");
+      printState("SEARCHING_STATE - Cambiando a sleep mode");
+      // Reseteamos porque cambiamos de estado
+      comienzoBusqueda = 0;  
+      // Seteamos el estado a SLEEP_MODE, porque se agotó el tiempo de búsqueda
+      // En realidad podríamos disparar un evento, sería mejor!
+      current_state = SLEEP_MODE_ACTIVATED_STATE;
+    } 
+    // Si todavia hay movimiento o no se supero el tiempo de busqueda, parpadeamos los LEDS
+    else
+    {
+      printState("SEARCHING_STATE - Parpadeando LEDs");
+
+      estadoLED = !estadoLED;
+      digitalWrite(LED_PIN, estadoLED);
+
+      tiempoDeteccion = millis();  
+    }
+  } 
+
+  //current_state = SEARCHING_STATE;
+}
+
+//---------------------------------------------------------------------
+// SENSOR RELATED FUNCTIONS
 
 // Chequea el nivel de luz que mide el fotoresistor, si es menor que SENSIBILIDAD_LUZ, es de noche
 boolean esDeNoche() 
@@ -92,13 +395,13 @@ boolean esDeNoche()
   return (analogRead(SENSOR_LUZ_PIN) <= SENSIBLIDAD_LUZ);
 }
 
-void detectarMovimiento() 
+boolean detectarMovimiento() 
 {
   // Leemos el pin del PIR
-  movimientoDetectado = digitalRead(PIR_PIN);  
+  int pirReading = digitalRead(PIR_PIN);  
 
   // Si está en alto, es porque el sensor detectó movimiento
-  if (movimientoDetectado == HIGH)
+  if (pirReading == HIGH)
   {        
     if (bloquearLow)
     {  
@@ -114,7 +417,7 @@ void detectarMovimiento()
     medirTiempoLow = true; 
   }   
 
-  if (movimientoDetectado == LOW)
+  if (pirReading == LOW)
   {     
     if (medirTiempoLow)
     {
@@ -134,150 +437,8 @@ void detectarMovimiento()
         Serial.println(" ");
     }
   }
-}
 
-void checkStates() 
-{
-  // Chequeamos el sensor de ultra sonido para ver si hay un objeto (o alguien) cerca
-  if (estadoActual != SLEEPING_STATE)
-  {
-    objetivoEnRango = estaEnRango();   
-  }
-
-  switch(current_state) 
-  {
-    case SLEEPING_STATE: 
-    {   
-      sleepingState();
-      break;
-    }
-
-    case SEARCHING_STATE: 
-    {
-      searchingState();
-      break;
-    }
-
-    case TARGET_AQUIRED_STATE: 
-    {
-      printState("TARGET_AQUIRED_STATE - Objetivo fijado");
-      estadoActual = FIRING_STATE;
-      break;
-    }     
-    
-    case FIRING_STATE:
-    {    
-      firingState();
-      break;
-    }
- 
-    case TARGET_LOST_STATE:
-    {    
-      printState("TARGET_LOST_STATE");         
-      estadoActual = SEARCHING_STATE;      
-      break;
-    }
-
-    case SLEEP_MODE_ACTIVATED:
-    {
-      sleepingMode();      
-      break;
-    }
-      
-    default:
-      Serial.println("DEFAULT");
-  }
-}
-
-void sleepingState() 
-{
-  printState("SLEEPING STATE");
-
-  if (movimientoDetectado)
-  {
-    printState("SLEEPING_STATE - Movimiento detectado");
-    // Encendemos el LED
-    digitalWrite(LED_PIN , HIGH);
-    // Guardamos el tiempo en que se detectó movimiento
-    tiempoDeteccion = millis();    
-    // Cambiamos de estado al estado de búsqueda
-    estadoActual = SEARCHING_STATE;
-  }
-}
-
-void searchingState() 
-{
-  // Tomamos el tiempo actual para saber cuándo empezó la búsqueda del objetivo
-  if (comienzoBusqueda == 0)
-    comienzoBusqueda = millis();
-  
-  printState("SEARCHING_STATE");
-    
-  if (objetivoEnRango)
-  {
-    printState("SEARCHING_STATE - Objetivo detectado");
-    estadoActual = TARGET_AQUIRED_STATE;
-    // Reseteamos porque cambiamos de estado
-    comienzoBusqueda = 0; 
-  }
-  // Si el objetivo no está en rango, seguimos moviendo la torreta un rato para buscar
-  else 
-  {
-    printState("SEARCHING_STATE - Buscando");
-
-    // Figure out how much time has passed
-    //tiempoActual = millis();
-
-    moverTorreta();
-    
-    if (tiempoActual > tiempoDeteccion + DELAY_PARPADEO)
-    {
-      // Si no hay movimiento y el tiempoActual supera el tiempo de busqueda
-      if (!movimientoDetectado && tiempoActual > comienzoBusqueda + TIEMPO_DE_BUSQUEDA)
-      {
-        printState("SEARCHING_STATE - Cambiando a sleep mode");
-        estadoActual = SLEEP_MODE_ACTIVATED;
-        // Reseteamos porque cambiamos de estado
-        comienzoBusqueda = 0;  
-      } 
-      // Si todavia hay movimiento o no se supero el tiempo de busqueda, parpadeamos los LEDS
-      else
-      {
-        printState("SEARCHING_STATE - Parpadeando LEDs");
-
-        estadoLED = !estadoLED;
-        digitalWrite(LED_PIN, estadoLED);
-
-        tiempoDeteccion = millis();  
-      }
-    } 
-  }
-}
-
-void firingState() 
-{
-  if (objetivoEnRango)
-  {  
-    printState("FIRING_STATE - Alerta");
-  }
-  else
-  {
-    estadoActual = TARGET_LOST_STATE;
-  } 
-}
-
-void sleepingMode() {
-  printState("SLEEPING_MODE_ACTIVATED - Goodnight");        
-  moverTorretaHome();  
-  // Apagamos el LED porque la torreta se va a dormir
-  digitalWrite(LED_PIN, LOW);  
-  estadoActual = SLEEPING_STATE;
-}
-
-void printState(String stateMessage) 
-{
-  if (PRINT_STATES)
-    Serial.println(stateMessage);
+  return pirReading;
 }
 
 // Detecta si lo que se movió está dentro del rango de detección de la torreta
@@ -318,6 +479,11 @@ float microsegundosACentimetros(float microsegundos)
   return microsegundos / MICROSEGUNDOS_POR_CM / 2;
 }
 
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// SERVO FUNCTIONS
+
 void moverTorreta()
 {
   if (leftToRight)
@@ -354,10 +520,31 @@ void moverTorreta()
 
 void moverTorretaHome()
 {  
-  Serial.print("Moviendo el servo a la posición inicial: ");
+  Serial.println("Moviendo el servo a la posición inicial: ");
   Serial.print(SERVO_MIDDLE_POSITION);  
   Serial.println(" ");
   
   // Reiniciamos la posición del servo 
   servo.write(SERVO_MIDDLE_POSITION);
 }
+
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// PRINT FUNCTIONS
+
+void printState(String stateMessage) 
+{
+  if (PRINT_STATES)
+    Serial.println(stateMessage);
+}
+
+void printStateMsg(String state, String event) 
+{
+  Serial.println("----------------------------");
+  Serial.println(state);
+  Serial.println(event);
+  Serial.println("----------------------------");
+}
+
+//---------------------------------------------------------------------
