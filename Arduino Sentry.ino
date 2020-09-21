@@ -275,11 +275,16 @@ void state_machine()
 
 void genera_evento() 
 {
+  // Generamos un nuevo evento. El tiempo de generación de eventos está regulado por la constante NEXT_EVENT_TIMEOUT.
   if (tiempoActual > lastTimeOut + NEXT_EVENT_TIMEOUT) 
   {
+    // Seteamos al lastTimeOut en el tiempo actual
     lastTimeOut = tiempoActual; 
-    // Implementar lógica para que se lea un sensor diferente en cada ciclo. De esta forma podemos disparar los eventos adecuados.
-
+    
+    // La siguiente lógica provoca que un sensor diferente se lea en cada ciclo. De esta forma, podemos
+    // disparar varios eventos. En sí esto no es una máquina de estados de sensores, ya que no hay eventos dentro de la misma.
+    // Simplemente es una lógica de código que nos permite chequear diferentes sensores y reaccionar apropiadamente acorde a las lecturas de los
+    // mismos.
     switch (sensor_state)
     {
       case READ_LIGHT_SENSOR: 
@@ -358,6 +363,7 @@ void readDistanceSensor()
   }
 }
 
+// Chequea si el tiempo de búsqueda expiró
 void checkSearchTimeout()
 {   
   // Si no hay movimiento y el tiempoActual supera el tiempo de busqueda
@@ -376,6 +382,7 @@ void checkSearchTimeout()
 //---------------------------------------------------------------------
 // BUSCAR OBJETIVO
 
+// Se encarga de mover la torreta y parpadear las luces LED
 void buscarObjetivo() 
 {
   // Si el objetivo no está en rango, seguimos moviendo la torreta un rato para buscar
@@ -404,6 +411,7 @@ boolean esDeNoche()
   return (analogRead(SENSOR_LUZ_PIN) <= SENSIBLIDAD_LUZ);
 }
 
+// Lee el sensor PIR para detectar movimiento
 boolean detectarMovimiento() 
 {
   // Leemos el pin del PIR
@@ -426,8 +434,9 @@ boolean detectarMovimiento()
     medirTiempoLow = true; 
   }   
 
+  // Si ocurrió una transición a bajo...
   if (pirReading == LOW)
-  {     
+  { 
     if (medirTiempoLow)
     {
       // Guardamos el tiempo en que se transicionó de HIGH a LOW
@@ -447,6 +456,7 @@ boolean detectarMovimiento()
     }
   }
 
+  // Retornamos la lecutra del PIR
   return pirReading;
 }
 
@@ -481,6 +491,7 @@ boolean estaEnRango()
   return result;
 }
 
+// Convierte microsegundos a centimetros, utilizado por el sensor de ultrasonido para medir la distancia
 float microsegundosACentimetros(float microsegundos)
 {
   // El tiempo devuelto por el sensor de ultrasonido toma todo el viaje que realiza la onda de sonido 
@@ -493,21 +504,28 @@ float microsegundosACentimetros(float microsegundos)
 //---------------------------------------------------------------------
 // SERVO FUNCTIONS
 
+// Mueve la torreta
 void moverTorreta()
 {
+  // Si el barrido es de izquierda a derecha...
   if (leftToRight)
   {
+    // Comprobamos que el servo no esté en la posición máxima
     if (servoPosition < SERVO_MAX_POSITION)
     {
+      // Incrementamos el ángulo de rotación/posición del servo
       servoPosition += SERVO_DELTA;
     }
     else
     {
+      //Si está en la posición máxima, cambiamos el sentido de barrido
       leftToRight = false;
+      // Decrementamos el ángulo de rotación/posición del servo
       servoPosition -= SERVO_DELTA;
     }
   }
-  else // Right to Left
+  // En caso contrario, el barrido es de derecha a izquierda
+  else 
   {
     if (servoPosition > SERVO_MIN_POSITION)
     {
@@ -518,18 +536,15 @@ void moverTorreta()
       leftToRight = true;
       servoPosition += SERVO_DELTA;
     }
-  }
-  
-  //Serial.println("Moviendo el servo a la posición ");
-  //Serial.println(servoPosition);
-
+  } 
   // Movemos el servo
   servo.write(servoPosition);
 }
 
+// Mueve la torreta a la posición inicial (middle position)
 void moverTorretaHome()
 {  
-  Serial.println("Moviendo el servo a la posición inicial: ");
+  Serial.print("Moviendo el servo a la posición inicial: ");
   Serial.print(SERVO_MIDDLE_POSITION);  
   Serial.println(" ");
   
