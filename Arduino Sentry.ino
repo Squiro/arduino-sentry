@@ -424,7 +424,8 @@ boolean detectarMovimiento()
     {  
       // Antes de volver a realizar otro output, nos fijamos de que el sensor PIR haya dejado de detectar movimiento
       // (es decir, que haya hecho una transición a LOW)
-      bloquearLow = false;            
+      bloquearLow = false;
+      // Imprimimos un mensaje indicando en qué tiempo se detectó el movimiento            
       Serial.println("---");
       Serial.print("Movimiento detectado a los ");
       Serial.print(tiempoActual/1000);
@@ -448,7 +449,9 @@ boolean detectarMovimiento()
     // Si el sensor permaneció en LOW más tiempo que el delay, asumimos que no se va a haber más movimiento
     if (!bloquearLow && (tiempoActual > tiempoTransicionLow + PIR_MOTION_DELAY))
     {  
-        bloquearLow = true;                        
+        // Reseteamos el valor de bloquearLow
+        bloquearLow = true;
+        // Imprimimos un mensaje indicando en qué tiempo se dejó de detectar movimiento                          
         Serial.print("Movimiento finalizado a los ");
         Serial.print((tiempoActual - PIR_MOTION_DELAY)/1000);
         Serial.print(" segundos");
