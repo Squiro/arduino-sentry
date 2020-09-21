@@ -69,7 +69,7 @@ void setup()
 
   // Seteamos el estado inicial  
   current_state = DAY_TIME_STATE;
-  Serial.print("La torreta no se activará hasta que sea de noche.");
+  Serial.print("La torreta no se activara hasta que sea de noche.");
 }
 
 //---------------------------------------------------------------------
@@ -544,7 +544,7 @@ void moverTorreta()
 // Mueve la torreta a la posición inicial (middle position)
 void moverTorretaHome()
 {  
-  Serial.print("Moviendo el servo a la posición inicial: ");
+  Serial.print("Moviendo el servo a la posicion inicial: ");
   Serial.print(SERVO_MIDDLE_POSITION);  
   Serial.println(" ");
   
