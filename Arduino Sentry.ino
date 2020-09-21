@@ -440,7 +440,7 @@ boolean detectarMovimiento()
     if (medirTiempoLow)
     {
       // Guardamos el tiempo en que se transicionó de HIGH a LOW
-      tiempoTransicionLow = millis();
+      tiempoTransicionLow = tiempoActual;
       // Nos aseguramos de solo tomarlo al principio de la transición (si no, lo estariamos tomando todo el rato)
       medirTiempoLow = false;       
     }
