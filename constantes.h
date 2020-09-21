@@ -3,10 +3,8 @@
 #define BOOTING_UP_STATE             150
 #define SLEEPING_STATE               200
 #define SEARCHING_STATE              300
-#define TARGET_AQUIRED_STATE         400
-#define FIRING_STATE                 500
-#define TARGET_LOST_STATE            600
-#define SLEEP_MODE_ACTIVATED_STATE   700
+#define FIRING_STATE                 400
+#define SLEEP_MODE_ACTIVATED_STATE   500
 
 // EVENTOS
 #define CONTINUE_EVENT            100
@@ -17,7 +15,6 @@
 #define TARGET_IN_RANGE_EVENT     400
 #define TARGET_OUT_OF_RANGE_EVENT 500
 #define SEARCH_TIMEOUT_EVENT      600
-#define READ_SENSORS_EVENT        700
 
 // "ESTADOS" DE LOS SENSORES
 #define READ_LIGHT_SENSOR    100
