@@ -58,7 +58,7 @@ unsigned long comienzoBusqueda = 0;
 void setup()
 {
   // Para poder imprimir mensajes
-  Serial.begin(9600);
+  Serial.begin(SERIAL_SPEED);
   // Setup de los pines de los sensores/actuadores/componentes
   pinMode(PIR_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT);
@@ -189,6 +189,7 @@ void state_machine()
         {
             printStateMsg("SEARCHING STATE", "TARGET OUT OF RANGE EVENT");
             buscarObjetivo(); 
+            current_state = SEARCHING_STATE;
         }
           break;
         
@@ -201,8 +202,8 @@ void state_machine()
 
         case CONTINUE_EVENT: 
         {
-          // printStateMsg("SEARCHING STATE", "CONTINUE EVENT");
-          current_state = SEARCHING_STATE;
+            // printStateMsg("SEARCHING STATE", "CONTINUE EVENT");
+            current_state = SEARCHING_STATE;
         }
           break;
         

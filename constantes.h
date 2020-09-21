@@ -57,3 +57,6 @@
 
 // DEBUG
 #define PRINT_STATES 0
+
+// MISC
+#define SERIAL_SPEED 9600
