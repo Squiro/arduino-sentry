@@ -7,7 +7,7 @@
 // ESTADOS Y EVENTOS
 int current_state = 0;
 int event = 0;
-int sensor_state;
+int sensor_state = 0;
 
 //---------------------------------------------------------------------
 // SERVO 
@@ -50,6 +50,13 @@ unsigned long tiempoParpadeo = 0;
 // Registra el tiempo en el que se comenzó la búsqueda
 unsigned long comienzoBusqueda = 0; 
 
+unsigned long contador_ms = 0;
+unsigned long contador_min = 0; 
+
+boolean minute_interrupt = false;
+boolean ms_interrupt = false;
+
+
 //---------------------------------------------------------------------
 
 //---------------------------------------------------------------------
@@ -79,8 +86,59 @@ void setup()
 
 void loop()
 {     
+  // !!!!!!!!!!!!!!!!
+  // Aplicar temporizador hibrido? Reducir tiempo de pooling del sensor de luz... usar diferentes "velocidades" para los otros sensores
+  // por ejemplo, 25ms para PIR y distancia, pero muchos segundos/horas para el de luz
   tiempoActual = millis();
   state_machine();
+}
+
+//---------------------------------------------------------------------
+
+//---------------------------------------------------------------------
+// ACTIVATE TIMER INTERRUPTS
+
+void activateTimerInterrupt()
+{
+  // Control del contador del temporizador 1A. 
+  // TCCR1A y TCCR1B son registros diferentes, pero funcionan en el mismo temporizador, timer1. 
+  // Configuran un comportamiento diferente y se ubican en registros separados, simplemente porque todos los bits no caben en un solo byte. 
+  // Al setear los bits WGM10 y WGM11 en 0, evitamos que los output pins (OC1A y OC1B) estén activos. Esto es porque los timers de Arduino
+  // se pueden usar para controlar la frencuencia de PWM de los pins... y es algo en lo que no nos queremos meter en este caso.
+  TCCR1A = NORMAL_MODE;
+  // Este registro se utiliza para setear el factor de escala (prescaler) del contador. El factor de escala nos permite aumentar
+  // el tiempo en el que se dispara una interrupción.
+  // Los bits cuarto y quinto (01) indican el modo normal de funcionamiento del temporizador. El resto de bits se utiliza para setear el 
+  // factor de escala.
+  TCCR1B = PRESCALER_1024;
+  // Seteado a través de una macro (definida más arriba). Se calcula teniendo en cuenta la velocidad de clock del Arduino, 
+  // el prescaler, y el tiempo deseado.
+  OCR1A = TIEMPO_DE_INTERRUPCION(TIEMPO_MAX_MS);
+  // Se utilizara la interrupción timer1 por comparación.
+  TIMSK1 = bit(OCIE1A);
+  // Habilita las interrupciones globales.
+  sei();
+}
+
+ISR(TIMER1_COMPB_vect)
+{
+  // Cada TIEMPO_MAX_MS se produce una interrupción, entonces sumamos eso al contador de ms
+  contador_ms += TIEMPO_MAX_MS;
+
+  // Reiniciamos el contador de MS cada 1 min, y actualizamos el contador de minutos
+  if (MS_TO_MIN(contador_ms) == 1)
+  {
+    contador_ms = 0;
+    contador_min++;
+  }
+
+  if (contador_min == TIMEOUT_MINUTOS) 
+  {
+    contador_min = 0;
+    minute_interrupt = true;
+  }
+
+  ms_interrupt = true;
 }
 
 //---------------------------------------------------------------------
@@ -276,24 +334,22 @@ void state_machine()
 
 void genera_evento() 
 {
-  // Generamos un nuevo evento. El tiempo de generación de eventos está regulado por la constante NEXT_EVENT_TIMEOUT.
-  if (tiempoActual > lastTimeOut + NEXT_EVENT_TIMEOUT) 
+  // Si se disparó la interrupción por haber llegado al TIMEOUT_MINUTOS, leemos el sensor de luz
+  if (minute_interrupt)
   {
-    // Seteamos al lastTimeOut en el tiempo actual
-    lastTimeOut = tiempoActual; 
-    
-    // La siguiente lógica provoca que un sensor diferente se lea en cada ciclo. De esta forma, podemos
+    readLightSensor();
+    // Reseteamos el booleano de interrupción
+    minute_interrupt = false;
+  }
+  // Si se disparó la interrupción por haber llegado a los 10ms, leemos el resto de sensores que nos interesan
+  else if (ms_interrupt)
+  {
+    // La siguiente lógica provoca que un sensor diferente se lea en cada timeout. De esta forma, podemos
     // disparar varios eventos. En sí esto no es una máquina de estados de sensores, ya que no hay eventos dentro de la misma.
     // Simplemente es una lógica de código que nos permite chequear diferentes sensores y reaccionar apropiadamente acorde a las lecturas de los
     // mismos.
     switch (sensor_state)
     {
-      case READ_LIGHT_SENSOR: 
-      {
-        readLightSensor();
-        sensor_state = READ_PIR_SENSOR;
-      }
-        break;
       case READ_PIR_SENSOR: 
       {
         readPIRSensor();
@@ -316,12 +372,66 @@ void genera_evento()
         sensor_state = READ_LIGHT_SENSOR;
         break;
     }
-  } 
+
+    // Reseteamos el booleano de interrupción
+    ms_interrupt = false;
+  }
+  // Si no se activó ninguno de los dos... disparamos un continue event
   else 
   {
     event = CONTINUE_EVENT;
   }
 }
+
+
+// void genera_evento() 
+// {
+//   // Generamos un nuevo evento. El tiempo de generación de eventos está regulado por la constante NEXT_EVENT_TIMEOUT.
+//   if (tiempoActual > lastTimeOut + NEXT_EVENT_TIMEOUT) 
+//   {
+//     // Seteamos al lastTimeOut en el tiempo actual
+//     lastTimeOut = tiempoActual; 
+    
+//     // La siguiente lógica provoca que un sensor diferente se lea en cada ciclo. De esta forma, podemos
+//     // disparar varios eventos. En sí esto no es una máquina de estados de sensores, ya que no hay eventos dentro de la misma.
+//     // Simplemente es una lógica de código que nos permite chequear diferentes sensores y reaccionar apropiadamente acorde a las lecturas de los
+//     // mismos.
+//     switch (sensor_state)
+//     {
+//       case READ_LIGHT_SENSOR: 
+//       {
+//         readLightSensor();
+//         sensor_state = READ_PIR_SENSOR;
+//       }
+//         break;
+//       case READ_PIR_SENSOR: 
+//       {
+//         readPIRSensor();
+//         sensor_state = READ_DISTANCE_SENSOR;
+//       }
+//         break;
+//       case READ_DISTANCE_SENSOR: 
+//       {
+//         readDistanceSensor();
+//         sensor_state = CHECK_SEARCH_TIMEOUT;
+//       }
+//       case CHECK_SEARCH_TIMEOUT: 
+//       {
+//         checkSearchTimeout();
+//         sensor_state = READ_LIGHT_SENSOR;
+//       }
+//         break;
+
+//       default: 
+//         sensor_state = READ_LIGHT_SENSOR;
+//         break;
+//     }
+//   } 
+//   else 
+//   {
+//     event = CONTINUE_EVENT;
+//   }
+// }
 
 //---------------------------------------------------------------------
 
@@ -371,7 +481,7 @@ void checkSearchTimeout()
   if (!movimientoDetectado && tiempoActual > comienzoBusqueda + TIMEOUT_BUSQUEDA)
   {
     printState("SEARCHING_STATE - Cambiando a sleep mode");
-    // Reseteamos porque cambiamos de estado
+    // Reseteamos porque vamos a cambiar de estado
     comienzoBusqueda = 0;  
     // Disparamos el evento de search time out
     event = SEARCH_TIMEOUT_EVENT;

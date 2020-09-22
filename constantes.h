@@ -55,6 +55,18 @@
 #define SENSOR_LUZ_PIN  14
 #define SENSIBLIDAD_LUZ 400 // Limite por el cual el programa empieza a funcionar (detecta si es de día o de noche)
 
+// TIMER INTERRUPTS
+#define NORMAL_MODE 0b00000000
+#define PRESCALER_1024 0b00001101
+#define PRESCALER 1024
+#define ARDUINO_FREQUENCY 16000000
+#define TIEMPO_DE_INTERRUPCION(T) ((long) (ARDUINO_FREQUENCY/(PRESCALER * T))-1 ) 
+#define TIEMPO_MAX_MS 0.01 
+//#define TIMEOUT_MINUTOS 30
+#define TIMEOUT_MINUTOS 0.000416
+#define MS_TO_MIN(ms) ( (ms/1000)/60 )
+
+
 // DEBUG
 #define PRINT_STATES 0
 
