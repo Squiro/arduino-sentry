@@ -48,9 +48,10 @@ unsigned long lastTimeOut = 0;
 // Registra el tiempo en que se detecto movimiento
 unsigned long tiempoParpadeo = 0; 
 // Registra el tiempo en el que se comenzó la búsqueda
-unsigned long comienzoBusqueda = 0; 
+unsigned long tiempoComienzoBusqueda = 0; 
 
-unsigned long contador_interrupt = 0;
+unsigned long contador_interrupt_min = 0;
+unsigned long contador_interrupt_33ms = 0; 
 unsigned long contador_min = 0; 
 
 boolean minute_interrupt = true;
@@ -85,11 +86,8 @@ void setup()
 // LOOP
 
 void loop()
-{     
-  // !!!!!!!!!!!!!!!!
-  // Aplicar temporizador hibrido? Reducir tiempo de pooling del sensor de luz... usar diferentes "velocidades" para los otros sensores
-  // por ejemplo, 25ms para PIR y distancia, pero muchos segundos/horas para el de luz
-  tiempoActual = millis();
+{    
+  genera_evento();
   state_machine();
 }
 
@@ -115,7 +113,6 @@ void activateTimerInterrupt()
   // el tiempo en el que se dispara una interrupción. También se utiliza para setear el modo de funcionamiento del timer,
   // nosotros elegimos CTC. 
   TCCR2B = TIMER2_PRE_1024_CTC;
-  //OCR2A = 255;
   // Se utilizara la interrupción timer2 por overflow.
   TIMSK2 = OVERFLOW_BIT;
   // Habilita las interrupciones globales.
@@ -128,24 +125,43 @@ void activateTimerInterrupt()
 ISR(TIMER2_OVF_vect)
 {  
   // Cada TIEMPO_INTERRUPT_OVERFLOW_MS se produce una interrupción, entonces sumamos eso al contador de ms
-  contador_interrupt++;
+  contador_interrupt_min++;
+  contador_interrupt_33ms++;
 
   // Cada 3662 (redondeado) interrupciones pasa un minuto,
   // esto es porque... un minuto son 60000ms, y como una interrupción por overflow ocurre cada 16,384ms...
   // 60000/16,384 = 3662.1093
-  if (CANT_INTERRUPCIONES_HASTA_MIN == contador_interrupt)
+  if (contador_interrupt_min == CANT_INTERRUPCIONES_HASTA_MIN)
   {
-    contador_interrupt = 0;
+    contador_interrupt_min = 0;
     contador_min++;
   }
 
+  // Para leer el light sensor cada TIMEOUT_MINUTOS
   if (contador_min >= TIMEOUT_MINUTOS) 
   {
     contador_min = 0;
     minute_interrupt = true;
   }
 
-  ms_interrupt = true;
+  // Para leer el resto de sensores cada 33ms
+  if (contador_interrupt_33ms == CANT_INTERRUPCIONES_HASTA_33ms)
+  {
+    contador_interrupt_33ms = 0;
+    ms_interrupt = true;    
+  }
+
+  // Llevamos registro del tiempo actual
+  tiempoActual += TIEMPO_INTERRUPT_OVERFLOW_MS;
+
+  // Si el tiempo actual se acerca al máximo de unsigned long, seteamos todos los contadores en 0
+  if (tiempoActual >= TIEMPO_MAX)
+  {
+    tiempoActual = 0;
+    tiempoParpadeo = 0;
+    tiempoTransicionLow = 0;
+    tiempoComienzoBusqueda = 0;
+  }
 }
 
 //---------------------------------------------------------------------
@@ -155,8 +171,6 @@ ISR(TIMER2_OVF_vect)
 
 void state_machine() 
 {
-  genera_evento();
-
   switch (current_state)
   {
     case DAY_TIME_STATE:
@@ -213,7 +227,7 @@ void state_machine()
           // Guardamos el tiempo en que se detectó movimiento          
           tiempoParpadeo = tiempoActual;    
           // Tomamos el tiempo actual para saber cuándo empezó la búsqueda del objetivo
-          comienzoBusqueda = tiempoActual;
+          tiempoComienzoBusqueda = tiempoActual;
           // Cambiamos de estado al estado de búsqueda
           current_state = SEARCHING_STATE;
         }
@@ -357,6 +371,7 @@ void genera_evento()
     // mismos.
     switch (sensor_state)
     {
+      
       case READ_PIR_SENSOR: 
       {
         readPIRSensor();
@@ -368,15 +383,16 @@ void genera_evento()
         readDistanceSensor();
         sensor_state = CHECK_SEARCH_TIMEOUT;
       }
+     	 break;
       case CHECK_SEARCH_TIMEOUT: 
       {
         checkSearchTimeout();
-        sensor_state = READ_LIGHT_SENSOR;
+        sensor_state = READ_PIR_SENSOR;
       }
         break;
 
       default: 
-        sensor_state = READ_LIGHT_SENSOR;
+        sensor_state = READ_PIR_SENSOR;
         break;
     }
 
@@ -389,56 +405,6 @@ void genera_evento()
     event = CONTINUE_EVENT;
   }
 }
-
-
-// void genera_evento() 
-// {
-//   // Generamos un nuevo evento. El tiempo de generación de eventos está regulado por la constante NEXT_EVENT_TIMEOUT.
-//   if (tiempoActual > lastTimeOut + NEXT_EVENT_TIMEOUT) 
-//   {
-//     // Seteamos al lastTimeOut en el tiempo actual
-//     lastTimeOut = tiempoActual; 
-    
-//     // La siguiente lógica provoca que un sensor diferente se lea en cada ciclo. De esta forma, podemos
-//     // disparar varios eventos. En sí esto no es una máquina de estados de sensores, ya que no hay eventos dentro de la misma.
-//     // Simplemente es una lógica de código que nos permite chequear diferentes sensores y reaccionar apropiadamente acorde a las lecturas de los
-//     // mismos.
-//     switch (sensor_state)
-//     {
-//       case READ_LIGHT_SENSOR: 
-//       {
-//         readLightSensor();
-//         sensor_state = READ_PIR_SENSOR;
-//       }
-//         break;
-//       case READ_PIR_SENSOR: 
-//       {
-//         readPIRSensor();
-//         sensor_state = READ_DISTANCE_SENSOR;
-//       }
-//         break;
-//       case READ_DISTANCE_SENSOR: 
-//       {
-//         readDistanceSensor();
-//         sensor_state = CHECK_SEARCH_TIMEOUT;
-//       }
-//       case CHECK_SEARCH_TIMEOUT: 
-//       {
-//         checkSearchTimeout();
-//         sensor_state = READ_LIGHT_SENSOR;
-//       }
-//         break;
-
-//       default: 
-//         sensor_state = READ_LIGHT_SENSOR;
-//         break;
-//     }
-//   } 
-//   else 
-//   {
-//     event = CONTINUE_EVENT;
-//   }
-// }
 
 //---------------------------------------------------------------------
 
@@ -485,11 +451,11 @@ void readDistanceSensor()
 void checkSearchTimeout()
 {   
   // Si no hay movimiento y el tiempoActual supera el tiempo de busqueda
-  if (!movimientoDetectado && tiempoActual > comienzoBusqueda + TIMEOUT_BUSQUEDA)
+  if (!movimientoDetectado && tiempoActual > tiempoComienzoBusqueda + TIMEOUT_BUSQUEDA)
   {
     printState("SEARCHING_STATE - Cambiando a sleep mode");
     // Reseteamos porque vamos a cambiar de estado
-    comienzoBusqueda = 0;  
+    tiempoComienzoBusqueda = 0;  
     // Disparamos el evento de search time out
     event = SEARCH_TIMEOUT_EVENT;
   } 

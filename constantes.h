@@ -16,11 +16,10 @@
 #define TARGET_OUT_OF_RANGE_EVENT 450
 #define SEARCH_TIMEOUT_EVENT      500
 
-// "ESTADOS" DE LOS SENSORES - Utilizado para la lógica de lectura de sensores
-#define READ_LIGHT_SENSOR    100
-#define READ_PIR_SENSOR      200
-#define READ_DISTANCE_SENSOR 300
-#define CHECK_SEARCH_TIMEOUT 400
+// LOGICA DE LOS SENSORES - Pseudo-estados utilizados para la lógica de lectura de sensores
+#define READ_PIR_SENSOR      100
+#define READ_DISTANCE_SENSOR 200
+#define CHECK_SEARCH_TIMEOUT 300
 
 // ULTRASONIDO
 
@@ -40,13 +39,11 @@
 
 // PIR
 #define PIR_PIN            2
-#define TIEMPO_CALIBRACION 0.1  // Tiempo (en segundos) de calibración para el PIR (necesario para un sensor PIR de verdad)
 #define PIR_MOTION_DELAY   2500 // La cantidad de (ms) que el sensor PIR tiene que estar en LOW para que asumamos que no hay mas movimiento
 
 // TIEMPO / PAUSAS / DELAY
 #define DELAY_PARPADEO     25   // Delay (en ms) del parpadeo de los LEDs después de detectar movimiento / fase de búsqueda
 #define TIMEOUT_BUSQUEDA   2500 // Duración de la búsqueda
-#define NEXT_EVENT_TIMEOUT 25
 
 // LED
 #define LED_PIN 12
@@ -61,9 +58,10 @@
 #define OVERFLOW_BIT 0b00000001
 #define TIEMPO_INTERRUPT_OVERFLOW_MS 16.384
 #define CANT_INTERRUPCIONES_HASTA_MIN 3662
+#define CANT_INTERRUPCIONES_HASTA_33ms 2
+#define TIEMPO_MAX 42949650
 #define TIMEOUT_MINUTOS 1
 #define MS_TO_MIN(ms) ( (ms/1000)/60 )
-
 
 // DEBUG
 #define PRINT_STATES 0
