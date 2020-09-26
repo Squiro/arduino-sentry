@@ -191,7 +191,8 @@ void state_machine()
         }
           break; 
         
-        default:                
+        default:
+          printStateMsg("DAYTIME STATE", "UNKNOWN EVENT");                
           break;
       }
     }
@@ -203,13 +204,14 @@ void state_machine()
       {
         case CONTINUE_EVENT:
         {
-          // printStateMsg("BOOTING_UP STATE", "CONTINUE EVENT");
+          printStateMsg("BOOTING_UP STATE", "CONTINUE EVENT");
           moverTorretaHome();
           current_state = SLEEPING_STATE;
         }
           break;
         
         default:
+          printStateMsg("BOOTING_UP STATE", "UNKNOWN EVENT");
           break;
         }    
     }
@@ -247,6 +249,7 @@ void state_machine()
           break;
         
         default:
+          printStateMsg("SLEEPING STATE", "UNKNOWN EVENT");
           break;
       }
     }
@@ -287,6 +290,7 @@ void state_machine()
           break;
         
         default:
+          printStateMsg("SEARCHING STATE", "UNKNOWN EVENT");
           break;
       }
     }
@@ -296,7 +300,6 @@ void state_machine()
     {
       switch (event)
       {
-
         case TARGET_IN_RANGE_EVENT: 
         {
           printStateMsg("FIRING_STATE", "TARGET IN RANGE EVENT");
@@ -309,9 +312,17 @@ void state_machine()
           printStateMsg("FIRING_STATE", "TARGET OUT OF RANGE EVENT");
           current_state = SEARCHING_STATE;
         }
-          break;    
+          break;
+
+        case CONTINUE_EVENT: 
+        {
+            // printStateMsg("SEARCHING STATE", "CONTINUE EVENT");
+            current_state = SEARCHING_STATE;
+        } 
+          break;
       
         default:
+          printStateMsg("FIRING_STATE", "UNKNOWN EVENT");
           break;
       }
     }
@@ -481,8 +492,7 @@ void buscarObjetivo()
     digitalWrite(LED_PIN, estadoLED);
 
     // Volvemos a setear el tiempo de parpadeo
-    tiempoParpadeo = tiempoActual; 
-  
+    tiempoParpadeo = tiempoActual;  
   } 
 }
 
@@ -510,12 +520,7 @@ boolean detectarMovimiento()
       // (es decir, que haya hecho una transición a LOW)
       bloquearLow = false;
       // Imprimimos un mensaje indicando en qué tiempo se detectó el movimiento            
-      Serial.println("---");
-      Serial.print("Movimiento detectado a los ");
-      Serial.print(tiempoActual/1000);
-      Serial.print(" segundos"); 
-      Serial.println(" ");
-    }        
+      printSensorMsg("Movimiento detectado a los ", tiempoActual/1000, "segundos");   
     medirTiempoLow = true; 
   }   
 
@@ -535,11 +540,8 @@ boolean detectarMovimiento()
     {  
         // Reseteamos el valor de bloquearLow
         bloquearLow = true;
-        // Imprimimos un mensaje indicando en qué tiempo se dejó de detectar movimiento                          
-        Serial.print("Movimiento finalizado a los ");
-        Serial.print((tiempoActual - PIR_MOTION_DELAY)/1000);
-        Serial.print(" segundos");
-        Serial.println(" ");
+        // Imprimimos un mensaje indicando en qué tiempo se dejó de detectar movimiento
+        printSensorMsg("Movimiento finalizado a los ", (tiempoActual - PIR_MOTION_DELAY)/1000, "segundos");                          
     }
   }
 
@@ -568,11 +570,7 @@ boolean estaEnRango()
   if (distancia <= RANGO_DETECCION_CM)
   {
     result = true;
-
-    Serial.print("Objeto detectado a distancia de ");
-    Serial.print(distancia);
-    Serial.print(" cm");
-    Serial.println(" ");
+    printSensorMsg("Objeto detectado a la distancia de ", distancia, "cm");
   }  
 
   return result;
@@ -652,9 +650,19 @@ void printState(String stateMessage)
 
 void printStateMsg(String state, String event) 
 {
-  Serial.println("----------------------------");
+  Serial.println("---------- STATE MESSAGE ----------");
   Serial.println(state);
   Serial.println(event);
+  Serial.println("----------------------------");
+}
+
+void printSensorMsg(String msg, int cant, String unit) 
+{
+  Serial.println("---------- SENSOR MESSAGE ----------");
+  Serial.print(msg);
+  Serial.print(cant);
+  Serial.print(" " + unit);
+  Serial.println(" ");
   Serial.println("----------------------------");
 }
 
