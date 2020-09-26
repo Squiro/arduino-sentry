@@ -50,12 +50,11 @@ unsigned long tiempoParpadeo = 0;
 // Registra el tiempo en el que se comenzó la búsqueda
 unsigned long comienzoBusqueda = 0; 
 
-unsigned long contador_ms = 0;
+unsigned long contador_interrupt = 0;
 unsigned long contador_min = 0; 
 
-boolean minute_interrupt = false;
-boolean ms_interrupt = false;
-
+boolean minute_interrupt = true;
+boolean ms_interrupt = true;
 
 //---------------------------------------------------------------------
 
@@ -72,7 +71,8 @@ void setup()
   pinMode(ULTRASENSOR_ECHO_PIN, INPUT);
   pinMode(ULTRASENSOR_TRIGGER_PIN, OUTPUT); 
   pinMode(SENSOR_LUZ_PIN, INPUT);
-  servo.attach(SERVO_PIN);     
+  servo.attach(SERVO_PIN);
+  activateTimerInterrupt();
 
   // Seteamos el estado inicial  
   current_state = DAY_TIME_STATE;
@@ -98,41 +98,48 @@ void loop()
 //---------------------------------------------------------------------
 // ACTIVATE TIMER INTERRUPTS
 
+// Es importante notar lo siguiente: algunos timers tienen registros diferentes. Por ejemplo, el registro TCCR2B (del timer2) NO es el mismo al TCCR1B. 
+// Esto es importantísimo, porque cambia la forma en que se setean tanto los prescalers como los modos de operación del timer (CTC, normal mode, etc). 
+// Para ver bien cómo se conforma cada registro y qué valor utilizar para cada modo, leer el datasheet del Atmega328p.
+// http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf (pág 130 en adelante)
+
 void activateTimerInterrupt()
 {
-  // Control del contador del temporizador 1A. 
-  // TCCR1A y TCCR1B son registros diferentes, pero funcionan en el mismo temporizador, timer1. 
+  // Control del contador del temporizador xA. 
+  // TCCRxA y TCCRxB son registros diferentes, pero funcionan en el mismo temporizador, timerX. 
   // Configuran un comportamiento diferente y se ubican en registros separados, simplemente porque todos los bits no caben en un solo byte. 
-  // Al setear los bits WGM10 y WGM11 en 0, evitamos que los output pins (OC1A y OC1B) estén activos. Esto es porque los timers de Arduino
+  // Al setear los bits WGM10 y WGM11 en 0, evitamos que los output pins (OCxA y OCxB) estén activos. Esto es porque los timers de Arduino
   // se pueden usar para controlar la frencuencia de PWM de los pins... y es algo en lo que no nos queremos meter en este caso.
-  TCCR1A = NORMAL_MODE;
+  TCCR2A = NORMAL_MODE;
   // Este registro se utiliza para setear el factor de escala (prescaler) del contador. El factor de escala nos permite aumentar
-  // el tiempo en el que se dispara una interrupción.
-  // Los bits cuarto y quinto (01) indican el modo normal de funcionamiento del temporizador. El resto de bits se utiliza para setear el 
-  // factor de escala.
-  TCCR1B = PRESCALER_1024;
-  // Seteado a través de una macro (definida más arriba). Se calcula teniendo en cuenta la velocidad de clock del Arduino, 
-  // el prescaler, y el tiempo deseado.
-  OCR1A = TIEMPO_DE_INTERRUPCION(TIEMPO_MAX_MS);
-  // Se utilizara la interrupción timer1 por comparación.
-  TIMSK1 = bit(OCIE1A);
+  // el tiempo en el que se dispara una interrupción. También se utiliza para setear el modo de funcionamiento del timer,
+  // nosotros elegimos CTC. 
+  TCCR2B = TIMER2_PRE_1024_CTC;
+  //OCR2A = 255;
+  // Se utilizara la interrupción timer2 por overflow.
+  TIMSK2 = OVERFLOW_BIT;
   // Habilita las interrupciones globales.
   sei();
 }
 
-ISR(TIMER1_COMPB_vect)
-{
-  // Cada TIEMPO_MAX_MS se produce una interrupción, entonces sumamos eso al contador de ms
-  contador_ms += TIEMPO_MAX_MS;
+// El tiempo con el que se producirá esta interrupción está dictado por el prescaler (factor escala), la frencuencia del reloj de arduino,
+// y el tamaño del buffer del registro contador. La fórmula general es: N = (16.000.000 * T)/fe - 1
+// Como N = 255, si despejamos esa fórmula llegamos a que se producirá una interrupción por overflow cada 0.016384 segundos (16,384 ms)
+ISR(TIMER2_OVF_vect)
+{  
+  // Cada TIEMPO_INTERRUPT_OVERFLOW_MS se produce una interrupción, entonces sumamos eso al contador de ms
+  contador_interrupt++;
 
-  // Reiniciamos el contador de MS cada 1 min, y actualizamos el contador de minutos
-  if (MS_TO_MIN(contador_ms) == 1)
+  // Cada 3662 (redondeado) interrupciones pasa un minuto,
+  // esto es porque... un minuto son 60000ms, y como una interrupción por overflow ocurre cada 16,384ms...
+  // 60000/16,384 = 3662.1093
+  if (CANT_INTERRUPCIONES_HASTA_MIN == contador_interrupt)
   {
-    contador_ms = 0;
+    contador_interrupt = 0;
     contador_min++;
   }
 
-  if (contador_min == TIMEOUT_MINUTOS) 
+  if (contador_min >= TIMEOUT_MINUTOS) 
   {
     contador_min = 0;
     minute_interrupt = true;
