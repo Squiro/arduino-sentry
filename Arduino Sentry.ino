@@ -1,6 +1,5 @@
 #include <Servo.h>
 #include "constantes.h"
-
 // VARIABLES GLOBALES
 
 //---------------------------------------------------------------------
@@ -30,6 +29,11 @@ boolean bloquearLow = true;
 boolean medirTiempoLow;
 
 //---------------------------------------------------------------------
+// VARIABLES RELACIONADAS AL SENSOR DE ULTRA SONIDO
+int rangoDeteccion = DEFALUT_RANGO_DETECCION_CM;
+
+
+//---------------------------------------------------------------------
 // FLAGS
 
 // Almacena el valor arrojado por el PIR (true = movimiento detectado, false = no hay movimiento)
@@ -50,6 +54,7 @@ unsigned long tiempoParpadeo = 0;
 // Registra el tiempo en el que se comenzó la búsqueda
 unsigned long tiempoComienzoBusqueda = 0; 
 
+// Contadores de interrupciones y minutos
 unsigned long contador_interrupt_min = 0;
 unsigned long contador_interrupt_33ms = 0; 
 unsigned long contador_min = 0; 
@@ -68,11 +73,18 @@ void setup()
   Serial.begin(SERIAL_SPEED);
   // Setup de los pines de los sensores/actuadores/componentes
   pinMode(PIR_PIN, INPUT);
+  pinMode(SENSOR_LUZ_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT);
+  pinMode(RANGE_LED_PIN, OUTPUT);
   pinMode(ULTRASENSOR_ECHO_PIN, INPUT);
   pinMode(ULTRASENSOR_TRIGGER_PIN, OUTPUT); 
-  pinMode(SENSOR_LUZ_PIN, INPUT);
   servo.attach(SERVO_PIN);
+
+  // Activamos la interrupción del botón
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), aumentarRangoDeteccion, RISING);
+
+  // Activamos interrupciones de timer
   activateTimerInterrupt();
 
   // Seteamos el estado inicial  
@@ -180,19 +192,19 @@ void state_machine()
 
         case NIGHT_TIME_EVENT:
         {
-          printStateMsg("DAYTIME STATE", "NIGHT_TIME EVENT");
+          printStateMsg("DAYTIME STATE", "NIGHT_TIME EVENT", NIGHT_TIME_EVENT);
           current_state = BOOTING_UP_STATE;
         }
           break;
 
         case CONTINUE_EVENT: 
         {
-          // printStateMsg("DAYTIME STATE", "CONTINUE EVENT");
+          printStateMsg("DAYTIME STATE", "CONTINUE EVENT", CONTINUE_EVENT);
         }
           break; 
         
         default:
-          printStateMsg("DAYTIME STATE", "UNKNOWN EVENT");                
+          //printStateMsg("DAYTIME STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);                
           break;
       }
     }
@@ -204,14 +216,15 @@ void state_machine()
       {
         case CONTINUE_EVENT:
         {
-          printStateMsg("BOOTING_UP STATE", "CONTINUE EVENT");
+          printStateMsg("BOOTING_UP STATE", "CONTINUE EVENT", CONTINUE_EVENT);
           moverTorretaHome();
+          actualizarRangeLed();
           current_state = SLEEPING_STATE;
         }
           break;
         
         default:
-          printStateMsg("BOOTING_UP STATE", "UNKNOWN EVENT");
+          printStateMsg("BOOTING_UP STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
           break;
         }    
     }
@@ -223,7 +236,7 @@ void state_machine()
       {
         case MOVEMENT_DETECTED_EVENT: 
         {
-          printStateMsg("SLEEPING STATE", "MOTION DETECTED EVENT");
+          printStateMsg("SLEEPING STATE", "MOVEMENT DETECTED EVENT", MOVEMENT_DETECTED_EVENT);
           // Encendemos los LED
           digitalWrite(LED_PIN , HIGH);
           // Guardamos el tiempo en que se detectó movimiento          
@@ -237,19 +250,20 @@ void state_machine()
 
         case DAY_TIME_EVENT: 
         {
-          printStateMsg("SLEEPING STATE", "DAY_TIME EVENT");
+          printStateMsg("SLEEPING STATE", "DAY_TIME EVENT", DAY_TIME_EVENT);
           current_state = DAY_TIME_STATE;
         }
           break;
 
         case CONTINUE_EVENT:
         {
-          // printStateMsg("SLEEPING STATE", "CONTINUE EVENT");        
+          //printStateMsg("SLEEPING STATE", "CONTINUE EVENT", CONTINUE_EVENT); 
+          current_state = SLEEPING_STATE;       
         }          
           break;
         
         default:
-          printStateMsg("SLEEPING STATE", "UNKNOWN EVENT");
+          //printStateMsg("SLEEPING STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
           break;
       }
     }
@@ -262,14 +276,14 @@ void state_machine()
 
         case TARGET_IN_RANGE_EVENT:
         {
-            printStateMsg("SEARCHING STATE", "TARGET IN RANGE EVENT");
+            printStateMsg("SEARCHING STATE", "TARGET IN RANGE EVENT", TARGET_IN_RANGE_EVENT);
             current_state = FIRING_STATE;
         }
           break;
 
         case TARGET_OUT_OF_RANGE_EVENT: 
         {
-            printStateMsg("SEARCHING STATE", "TARGET OUT OF RANGE EVENT");
+            printStateMsg("SEARCHING STATE", "TARGET OUT OF RANGE EVENT", TARGET_OUT_OF_RANGE_EVENT);
             buscarObjetivo(); 
             current_state = SEARCHING_STATE;
         }
@@ -277,20 +291,20 @@ void state_machine()
         
         case SEARCH_TIMEOUT_EVENT: 
         {
-            printStateMsg("SEARCHING STATE", "SERACH TIME OUT EVENT");
+            printStateMsg("SEARCHING STATE", "SERACH TIME OUT EVENT", SEARCH_TIMEOUT_EVENT);
             current_state = SLEEP_MODE_ACTIVATED_STATE;
         }
           break;
 
         case CONTINUE_EVENT: 
         {
-            // printStateMsg("SEARCHING STATE", "CONTINUE EVENT");
+            //printStateMsg("SEARCHING STATE", "CONTINUE EVENT", CONTINUE_EVENT);
             current_state = SEARCHING_STATE;
         }
           break;
         
         default:
-          printStateMsg("SEARCHING STATE", "UNKNOWN EVENT");
+          //printStateMsg("SEARCHING STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
           break;
       }
     }
@@ -302,27 +316,27 @@ void state_machine()
       {
         case TARGET_IN_RANGE_EVENT: 
         {
-          printStateMsg("FIRING_STATE", "TARGET IN RANGE EVENT");
+          printStateMsg("FIRING_STATE", "TARGET IN RANGE EVENT", TARGET_IN_RANGE_EVENT);
           current_state = FIRING_STATE;
         }
           break;
 
         case TARGET_OUT_OF_RANGE_EVENT: 
         {
-          printStateMsg("FIRING_STATE", "TARGET OUT OF RANGE EVENT");
+          printStateMsg("FIRING_STATE", "TARGET OUT OF RANGE EVENT", TARGET_OUT_OF_RANGE_EVENT);
           current_state = SEARCHING_STATE;
         }
           break;
 
         case CONTINUE_EVENT: 
         {
-            // printStateMsg("SEARCHING STATE", "CONTINUE EVENT");
-            current_state = SEARCHING_STATE;
+          //printStateMsg("FIRING_STATE", "CONTINUE EVENT", CONTINUE_EVENT);
+          current_state = FIRING_STATE;
         } 
           break;
       
         default:
-          printStateMsg("FIRING_STATE", "UNKNOWN EVENT");
+          //printStateMsg("FIRING_STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
           break;
       }
     }
@@ -350,7 +364,7 @@ void state_machine()
     
     default:
     {
-      printStateMsg("UKNOWN STATE", "UNKNOWN EVENT");
+      printStateMsg("UKNOWN STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
     }
       break;
   }
@@ -394,7 +408,7 @@ void genera_evento()
         readDistanceSensor();
         sensor_state = CHECK_SEARCH_TIMEOUT;
       }
-     	 break;
+        break;
       case CHECK_SEARCH_TIMEOUT: 
       {
         checkSearchTimeout();
@@ -464,7 +478,7 @@ void checkSearchTimeout()
   // Si no hay movimiento y el tiempoActual supera el tiempo de busqueda
   if (!movimientoDetectado && tiempoActual > tiempoComienzoBusqueda + TIMEOUT_BUSQUEDA)
   {
-    printState("SEARCHING_STATE - Cambiando a sleep mode");
+    printMsg("SEARCHING_STATE - Cambiando a sleep mode");
     // Reseteamos porque vamos a cambiar de estado
     tiempoComienzoBusqueda = 0;  
     // Disparamos el evento de search time out
@@ -481,12 +495,14 @@ void checkSearchTimeout()
 void buscarObjetivo() 
 {
   // Si el objetivo no está en rango, seguimos moviendo la torreta un rato para buscar
-  printState("SEARCHING_STATE - Buscando");
+  printMsg("SEARCHING_STATE - Buscando");
   // Movemos la torreta
   moverTorreta();  
+  
+  // Parpadeamos los LEDS itermitentemente teniendo en cuenta el delay del parpadeo
   if (tiempoActual > tiempoParpadeo + DELAY_PARPADEO)
   {
-    printState("SEARCHING_STATE - Parpadeando LEDs");
+    printMsg("SEARCHING_STATE - Parpadeando LEDs");
 
     estadoLED = !estadoLED;
     digitalWrite(LED_PIN, estadoLED);
@@ -521,6 +537,7 @@ boolean detectarMovimiento()
       bloquearLow = false;
       // Imprimimos un mensaje indicando en qué tiempo se detectó el movimiento            
       printSensorMsg("Movimiento detectado a los ", tiempoActual/1000, "segundos");   
+    }
     medirTiempoLow = true; 
   }   
 
@@ -567,7 +584,7 @@ boolean estaEnRango()
   // Convertimos el tiempo en distancia
   distancia = microsegundosACentimetros(duracion);
 
-  if (distancia <= RANGO_DETECCION_CM)
+  if (distancia <= rangoDeteccion)
   {
     result = true;
     printSensorMsg("Objeto detectado a la distancia de ", distancia, "cm");
@@ -582,6 +599,26 @@ float microsegundosACentimetros(float microsegundos)
   // El tiempo devuelto por el sensor de ultrasonido toma todo el viaje que realiza la onda de sonido 
   // (tanto de ida, como la vuelta luego del rebote). Para obtener la distancia del objeto detectado, dividimos por 2
   return microsegundos / MICROSEGUNDOS_POR_CM / 2;
+}
+
+// Handler de la interrupción causada por el botón
+void aumentarRangoDeteccion()
+{
+  rangoDeteccion += INCREMENTO_RANGO;
+
+  if (rangoDeteccion > RANGO_DETECCION_MAX)
+  {
+    rangoDeteccion = RANGO_DETECCION_MIN;
+  }
+
+  actualizarRangeLed();
+  printSensorMsg("Rango de deteccion modificado, nuevo valor: ", rangoDeteccion, "cm");
+}
+
+// Actualiza la intensidad del range LED
+void actualizarRangeLed()
+{
+  analogWrite(RANGE_LED_PIN, map(rangoDeteccion, RANGO_DETECCION_MIN, RANGO_DETECCION_MAX, MIN_LED_PWM, MAX_LED_PWM));
 }
 
 //---------------------------------------------------------------------
@@ -642,17 +679,26 @@ void moverTorretaHome()
 //---------------------------------------------------------------------
 // PRINT FUNCTIONS
 
-void printState(String stateMessage) 
+void printMsg(String msg)
 {
-  if (PRINT_STATES)
-    Serial.println(stateMessage);
+  if (PRINT_USELESS_STATES)
+  {
+    Serial.println(msg);
+    Serial.println(" ");
+  }
+
 }
 
-void printStateMsg(String state, String event) 
+void printStateMsg(String state, String eventStr, int eventID) 
 {
+  if (!PRINT_USELESS_STATES && (eventID == CONTINUE_EVENT || eventID == UNKNOWN_EVENT))
+  {
+    return;
+  }
+
   Serial.println("---------- STATE MESSAGE ----------");
   Serial.println(state);
-  Serial.println(event);
+  Serial.println(eventStr);
   Serial.println("----------------------------");
 }
 

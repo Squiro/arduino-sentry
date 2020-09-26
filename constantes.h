@@ -15,6 +15,7 @@
 #define TARGET_IN_RANGE_EVENT     400
 #define TARGET_OUT_OF_RANGE_EVENT 450
 #define SEARCH_TIMEOUT_EVENT      500
+#define UNKNOWN_EVENT             999
 
 // LOGICA DE LOS SENSORES - Pseudo-estados utilizados para la lógica de lectura de sensores
 #define READ_PIR_SENSOR      100
@@ -27,8 +28,11 @@
 #define ULTRASENSOR_TRIGGER_PIN 9    // Pin para enviar el pulso de disparo
 
 // ULTRASONIDO Y DISTANCIA
-#define RANGO_DETECCION_CM   200    // Distancia a la que la torreta va a detectar un objetivo
-#define MICROSEGUNDOS_POR_CM 29     // Constante, basada en la velocidad del sonido (340m/s), indica cuantos microsegundos hay en 1cm
+#define DEFALUT_RANGO_DETECCION_CM   200    // Distancia a la que la torreta va a detectar un objetivo
+#define RANGO_DETECCION_MAX          300
+#define RANGO_DETECCION_MIN          25
+#define INCREMENTO_RANGO             25
+#define MICROSEGUNDOS_POR_CM         29     // Constante, basada en la velocidad del sonido (340m/s), indica cuantos microsegundos hay en 1cm
 
 // SERVO
 #define SERVO_MIN_POSITION      0
@@ -38,7 +42,7 @@
 #define SERVO_PIN               6  // Pin PWN del servo
 
 // PIR
-#define PIR_PIN            2
+#define PIR_PIN            4
 #define PIR_MOTION_DELAY   2500 // La cantidad de (ms) que el sensor PIR tiene que estar en LOW para que asumamos que no hay mas movimiento
 
 // TIEMPO / PAUSAS / DELAY
@@ -47,6 +51,10 @@
 
 // LED
 #define LED_PIN 12
+#define RANGE_LED_PIN 5
+
+// BOTON
+#define BUTTON_PIN 2
 
 // FOTORESISTOR
 #define SENSOR_LUZ_PIN  14
@@ -64,7 +72,9 @@
 #define MS_TO_MIN(ms) ( (ms/1000)/60 )
 
 // DEBUG
-#define PRINT_STATES 0
+#define PRINT_USELESS_STATES 0
 
 // MISC
 #define SERIAL_SPEED 9600
+#define MIN_LED_PWM  32
+#define MAX_LED_PWM  255
