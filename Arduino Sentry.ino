@@ -348,7 +348,7 @@ void state_machine()
       {
         case CONTINUE_EVENT:
         {
-          printStateMsg("SLEEP_MODE_ACTIVATED STATE", "CONTINUE EVENT");
+          printStateMsg("SLEEP_MODE_ACTIVATED STATE", "CONTINUE EVENT", CONTINUE_EVENT);
           moverTorretaHome();  
           // Apagamos el LED porque la torreta se va a dormir
           digitalWrite(LED_PIN, LOW);  
@@ -364,7 +364,7 @@ void state_machine()
     
     default:
     {
-      printStateMsg("UKNOWN STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
+      printStateMsg("UNKNOWN STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
     }
       break;
   }
