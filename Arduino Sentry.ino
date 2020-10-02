@@ -204,7 +204,7 @@ void state_machine()
           break; 
         
         default:
-          //printStateMsg("DAYTIME STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);                
+          printStateMsg("DAYTIME STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);                
           break;
       }
     }
@@ -257,13 +257,13 @@ void state_machine()
 
         case CONTINUE_EVENT:
         {
-          //printStateMsg("SLEEPING STATE", "CONTINUE EVENT", CONTINUE_EVENT); 
+          // Continue event. No lo printeamos para no estar constantemente gastando ciclos en eso. 
           current_state = SLEEPING_STATE;       
         }          
           break;
         
         default:
-          //printStateMsg("SLEEPING STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
+          // Unknown event. No lo printeamos para no estar constantemente gastando ciclos en eso. 
           break;
       }
     }
@@ -298,13 +298,13 @@ void state_machine()
 
         case CONTINUE_EVENT: 
         {
-            //printStateMsg("SEARCHING STATE", "CONTINUE EVENT", CONTINUE_EVENT);
+            // Continue event. No lo printeamos para no estar constantemente gastando ciclos en eso. 
             current_state = SEARCHING_STATE;
         }
           break;
         
         default:
-          //printStateMsg("SEARCHING STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
+          // Unknown event. No lo printeamos para no estar constantemente gastando ciclos en eso. 
           break;
       }
     }
@@ -330,13 +330,13 @@ void state_machine()
 
         case CONTINUE_EVENT: 
         {
-          //printStateMsg("FIRING_STATE", "CONTINUE EVENT", CONTINUE_EVENT);
+          // Continue event. No lo printeamos para no estar constantemente gastando ciclos en eso. 
           current_state = FIRING_STATE;
         } 
           break;
       
         default:
-          //printStateMsg("FIRING_STATE", "UNKNOWN EVENT", UNKNOWN_EVENT);
+          // Unknown event. No lo printeamos para no estar constantemente gastando ciclos en eso. 
           break;
       }
     }
@@ -348,7 +348,7 @@ void state_machine()
       {
         case CONTINUE_EVENT:
         {
-          // printStateMsg("SLEEP_MODE_ACTIVATED STATE", "CONTINUE EVENT");
+          printStateMsg("SLEEP_MODE_ACTIVATED STATE", "CONTINUE EVENT");
           moverTorretaHome();  
           // Apagamos el LED porque la torreta se va a dormir
           digitalWrite(LED_PIN, LOW);  
